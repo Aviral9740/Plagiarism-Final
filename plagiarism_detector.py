@@ -21,30 +21,73 @@ except ImportError:
     print("Install with: pip install beautifulsoup4 lxml")
     BS4_AVAILABLE = False
 
+try:
+    import streamlit as st
+
+    STREAMLIT_AVAILABLE = True
+except ImportError:
+    STREAMLIT_AVAILABLE = False
+
+
+def get_config_value(key_name: str, default=None):
+    # Priority 1: Streamlit secrets (for cloud deployment)
+    if STREAMLIT_AVAILABLE:
+        try:
+            if hasattr(st, 'secrets') and key_name in st.secrets:
+                return st.secrets[key_name]
+        except (FileNotFoundError, KeyError):
+            pass
+
+    # Priority 2: Environment variables (for local .env)
+    env_value = os.getenv(key_name)
+    if env_value is not None:
+        return env_value
+
+    # Priority 3: Default value
+    return default
+
 
 class Config:
-    """Configuration class to manage environment variables"""
+    """Configuration class to manage environment variables and Streamlit secrets"""
 
     def __init__(self):
-        # API Keys
-        self.SEARCHAPI_KEY = os.getenv('SEARCHAPI_KEY')
+        # API Keys - now supports both .env and Streamlit secrets
+        self.SEARCHAPI_KEY = get_config_value('SEARCHAPI_KEY')
+
         # Search Limits
-        self.MAX_RESULTS_WEB = int(os.getenv('MAX_RESULTS_WEB', 5))
-        self.MAX_RESULTS_SCHOLAR = int(os.getenv('MAX_RESULTS_SCHOLAR', 5))
-        self.MAX_RESULTS_ARXIV = int(os.getenv('MAX_RESULTS_ARXIV', 3))
+        self.MAX_RESULTS_WEB = int(get_config_value('MAX_RESULTS_WEB', 5))
+        self.MAX_RESULTS_SCHOLAR = int(get_config_value('MAX_RESULTS_SCHOLAR', 5))
+        self.MAX_RESULTS_ARXIV = int(get_config_value('MAX_RESULTS_ARXIV', 3))
 
         # Similarity Thresholds
-        self.SIMILARITY_THRESHOLD = float(os.getenv('SIMILARITY_THRESHOLD', 0.15))
+        self.SIMILARITY_THRESHOLD = float(get_config_value('SIMILARITY_THRESHOLD', 0.15))
 
         # Timeouts
-        self.API_TIMEOUT = int(os.getenv('API_TIMEOUT', 10))
+        self.API_TIMEOUT = int(get_config_value('API_TIMEOUT', 10))
 
     def validate(self):
         """Validate that required configuration is present"""
         if not self.SEARCHAPI_KEY:
-            print("Warning: SEARCHAPI_KEY not found in environment variables.")
-            print("Web search and Google Scholar features will be disabled.")
-            print("Please add SEARCHAPI_KEY to your .env file.")
+            warning_msg = """
+⚠️ SEARCHAPI_KEY not found!
+
+Configuration options:
+1. Local development: Add SEARCHAPI_KEY to your .env file
+2. Streamlit Cloud: Add SEARCHAPI_KEY to App Settings → Secrets
+
+Web search and Google Scholar features will be disabled without an API key.
+            """
+            print(warning_msg)
+
+            # If running in Streamlit, show a warning in the UI
+            if STREAMLIT_AVAILABLE:
+                try:
+                    st.warning(warning_msg)
+                except:
+                    pass
+
+            return False
+        return True
 
 
 class PlagiarismDetector:
@@ -53,7 +96,7 @@ class PlagiarismDetector:
 
         # Load configuration
         self.config = config or Config()
-        self.config.validate()
+        self.api_key_valid = self.config.validate()
 
         self.searchapi_key = self.config.SEARCHAPI_KEY
 
@@ -100,7 +143,15 @@ class PlagiarismDetector:
                 'venue': 'NeurIPS 2014'
             }
         ]
-        print(f"✓ PlagiarismDetector initialized successfully ({len(self.knowledge_base)} papers in knowledge base)")
+
+        status_msg = f"✓ PlagiarismDetector initialized successfully ({len(self.knowledge_base)} papers in knowledge base)"
+        print(status_msg)
+
+        if STREAMLIT_AVAILABLE and self.api_key_valid:
+            try:
+                st.success("✅ API keys loaded successfully! Web search enabled.")
+            except:
+                pass
 
     def preprocess_text(self, text: str) -> str:
         text = text.lower()
@@ -478,7 +529,7 @@ class PlagiarismDetector:
 
 
 def main():
-    # Initialize detector with configuration from .env
+    # Initialize detector with configuration from .env or Streamlit secrets
     config = Config()
     detector = PlagiarismDetector(config)
 
