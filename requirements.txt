@@ -1,0 +1,27 @@
+# Streamlit
+streamlit>=1.28.0
+
+# FastAPI and server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+pydantic>=2.5.0
+
+# Data processing and ML
+numpy>=1.26.0
+scikit-learn>=1.5.0
+pandas>=2.1.0
+
+# Web scraping
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+python-multipart>=0.0.6
+
+# Production server
+gunicorn>=21.2.0
+
+# Performance (optional)
+orjson>=3.9.0
